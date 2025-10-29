@@ -1,0 +1,30 @@
+{
+  "tests": [
+    {
+      "name": "Test login with valid credentials",
+      "method": "POST",
+      "path": "/",
+      "body": {
+        "username": "skzry",
+        "password": "22"
+      },
+      "expectedStatus": 200,
+      "expectedBody": {
+        "username": "string",
+        "firstName": "string",
+        "role": "string"
+      },
+      "bodyMatcher": "partial"
+    },
+    {
+      "name": "Test login with invalid credentials",
+      "method": "POST",
+      "path": "/",
+      "body": {
+        "username": "wrong",
+        "password": "wrong"
+      },
+      "expectedStatus": 401
+    }
+  ]
+}

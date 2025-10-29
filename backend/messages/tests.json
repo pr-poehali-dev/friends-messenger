@@ -1,0 +1,27 @@
+{
+  "tests": [
+    {
+      "name": "Test send message",
+      "method": "POST",
+      "path": "/",
+      "body": {
+        "senderId": "1",
+        "receiverId": "2",
+        "text": "Test message"
+      },
+      "expectedStatus": 201,
+      "expectedBody": {
+        "id": "string",
+        "text": "string",
+        "timestamp": "string"
+      },
+      "bodyMatcher": "partial"
+    },
+    {
+      "name": "Test get messages",
+      "method": "GET",
+      "path": "/?userId=1&contactId=2",
+      "expectedStatus": 200
+    }
+  ]
+}

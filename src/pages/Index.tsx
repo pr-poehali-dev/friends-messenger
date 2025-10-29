@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
@@ -12,110 +12,77 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import Icon from '@/components/ui/icon';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
-
-type UserRole = 'developer' | 'user';
-
-interface User {
-  id: string;
-  username: string;
-  firstName: string;
-  lastName: string;
-  avatar?: string;
-  role: UserRole;
-  isFriend?: boolean;
-  lastSeen?: Date;
-  isOnline?: boolean;
-}
-
-interface Message {
-  id: string;
-  senderId: string;
-  text: string;
-  timestamp: Date;
-}
-
-interface Chat {
-  id: string;
-  userId: string;
-  messages: Message[];
-  isTyping?: boolean;
-}
+import { api, User, Chat, Message } from '@/lib/api';
 
 const Index = () => {
   const { toast } = useToast();
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [showRegistration, setShowRegistration] = useState(false);
-  const [showProfileSetup, setShowProfileSetup] = useState(false);
   const [loginData, setLoginData] = useState({ login: '', password: '' });
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [activeTab, setActiveTab] = useState('chats');
   const [selectedChat, setSelectedChat] = useState<string | null>(null);
   const [messageText, setMessageText] = useState('');
   const [searchUsername, setSearchUsername] = useState('');
+  const [users, setUsers] = useState<User[]>([]);
+  const [chats, setChats] = useState<Chat[]>([]);
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [loading, setLoading] = useState(false);
 
-  const [users] = useState<User[]>([
-    {
-      id: 'dev1',
-      username: 'skzry',
-      firstName: 'Разработчик',
-      lastName: 'Главный',
-      avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=skzry',
-      role: 'developer',
-      isOnline: true,
-    },
-    {
-      id: '2',
-      username: 'anna_ivanova',
-      firstName: 'Анна',
-      lastName: 'Иванова',
-      avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=anna',
-      role: 'user',
-      isFriend: true,
-      lastSeen: new Date(Date.now() - 300000),
-    },
-    {
-      id: '3',
-      username: 'mikhail_v',
-      firstName: 'Михаил',
-      lastName: 'Волков',
-      avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=mikhail',
-      role: 'user',
-      lastSeen: new Date(Date.now() - 3600000),
-    },
-  ]);
+  useEffect(() => {
+    if (isAuthenticated && currentUser) {
+      loadUsers();
+      loadChats();
+    }
+  }, [isAuthenticated, currentUser]);
 
-  const [chats] = useState<Chat[]>([
-    {
-      id: '1',
-      userId: 'dev1',
-      messages: [
-        { id: '1', senderId: 'dev1', text: 'Привет! Добро пожаловать в FriendsMess', timestamp: new Date() },
-      ],
-    },
-    {
-      id: '2',
-      userId: '2',
-      messages: [
-        { id: '2', senderId: '2', text: 'Привет! Как дела?', timestamp: new Date(Date.now() - 600000) },
-      ],
-    },
-  ]);
+  useEffect(() => {
+    if (selectedChat && currentUser) {
+      loadMessages(currentUser.id, selectedChat);
+    }
+  }, [selectedChat, currentUser]);
 
-  const handleLogin = () => {
-    if (loginData.login === 'skzry' && loginData.password === '22') {
+  const loadUsers = async () => {
+    try {
+      const data = await api.getUsers();
+      setUsers(data);
+    } catch (error) {
+      toast({ title: 'Ошибка', description: 'Не удалось загрузить пользователей', variant: 'destructive' });
+    }
+  };
+
+  const loadChats = async () => {
+    if (!currentUser) return;
+    try {
+      const data = await api.getChats(currentUser.id);
+      setChats(data);
+    } catch (error) {
+      console.error('Failed to load chats:', error);
+    }
+  };
+
+  const loadMessages = async (userId: string, contactId: string) => {
+    try {
+      const data = await api.getMessages(userId, contactId);
+      setMessages(data);
+    } catch (error) {
+      toast({ title: 'Ошибка', description: 'Не удалось загрузить сообщения', variant: 'destructive' });
+    }
+  };
+
+  const handleLogin = async () => {
+    if (!loginData.login || !loginData.password) return;
+    
+    setLoading(true);
+    try {
+      const user = await api.login(loginData.login, loginData.password);
+      setCurrentUser(user);
       setIsAuthenticated(true);
-      setCurrentUser({
-        id: 'dev1',
-        username: 'skzry',
-        firstName: 'Разработчик',
-        lastName: 'Главный',
-        avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=skzry',
-        role: 'developer',
-        isOnline: true,
-      });
-    } else if (loginData.login && loginData.password) {
-      setIsAuthenticated(true);
-      setShowProfileSetup(true);
+      toast({ title: 'Добро пожаловать!', description: `${user.firstName} ${user.lastName}` });
+    } catch (error) {
+      toast({ title: 'Ошибка входа', description: 'Неверный логин или пароль', variant: 'destructive' });
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -129,33 +96,24 @@ const Index = () => {
     }
   };
 
-  const handleProfileSetup = (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    const formData = new FormData(e.currentTarget);
-    setCurrentUser({
-      id: 'current',
-      username: formData.get('username') as string,
-      firstName: formData.get('firstName') as string,
-      lastName: formData.get('lastName') as string,
-      role: 'user',
-      isOnline: true,
-    });
-    setShowProfileSetup(false);
-  };
-
-  const handleSendMessage = () => {
-    if (messageText.trim() && selectedChat) {
-      toast({
-        title: 'Сообщение отправлено',
-        description: messageText,
-      });
+  const handleSendMessage = async () => {
+    if (!messageText.trim() || !selectedChat || !currentUser) return;
+    
+    try {
+      const newMessage = await api.sendMessage(currentUser.id, selectedChat, messageText);
+      setMessages([...messages, newMessage]);
       setMessageText('');
+      loadChats();
+    } catch (error) {
+      toast({ title: 'Ошибка', description: 'Не удалось отправить сообщение', variant: 'destructive' });
     }
   };
 
   const getUserById = (userId: string) => users.find(u => u.id === userId);
 
-  const getRoleBadge = (user: User) => {
+  const getChatById = (chatId: string) => chats.find(c => c.userId === chatId);
+
+  const getRoleBadge = (user: User | Chat) => {
     if (user.role === 'developer') {
       return (
         <Badge 
@@ -179,14 +137,20 @@ const Index = () => {
     return null;
   };
 
-  const formatLastSeen = (date?: Date, isOnline?: boolean) => {
+  const formatLastSeen = (lastSeenStr?: string, isOnline?: boolean) => {
     if (isOnline) return 'В сети';
-    if (!date) return 'Был(а) давно';
-    const diff = Date.now() - date.getTime();
+    if (!lastSeenStr) return 'Был(а) давно';
+    const lastSeen = new Date(lastSeenStr);
+    const diff = Date.now() - lastSeen.getTime();
     const minutes = Math.floor(diff / 60000);
     const hours = Math.floor(diff / 3600000);
     if (minutes < 60) return `Был(а) ${minutes} мин. назад`;
     return `Был(а) ${hours} ч. назад`;
+  };
+
+  const startChat = async (userId: string) => {
+    setSelectedChat(userId);
+    setActiveTab('chats');
   };
 
   if (!isAuthenticated) {
@@ -212,6 +176,7 @@ const Index = () => {
                   placeholder="Введите логин"
                   value={loginData.login}
                   onChange={(e) => setLoginData({ ...loginData, login: e.target.value })}
+                  onKeyDown={(e) => e.key === 'Enter' && handleLogin()}
                   className="mt-1"
                 />
               </div>
@@ -223,11 +188,16 @@ const Index = () => {
                   placeholder="Введите пароль"
                   value={loginData.password}
                   onChange={(e) => setLoginData({ ...loginData, password: e.target.value })}
+                  onKeyDown={(e) => e.key === 'Enter' && handleLogin()}
                   className="mt-1"
                 />
               </div>
-              <Button onClick={handleLogin} className="w-full bg-gradient-to-r from-primary to-secondary hover:opacity-90 transition-all shadow-lg">
-                Войти
+              <Button 
+                onClick={handleLogin} 
+                disabled={loading}
+                className="w-full bg-gradient-to-r from-primary to-secondary hover:opacity-90 transition-all shadow-lg"
+              >
+                {loading ? 'Вход...' : 'Войти'}
               </Button>
               <Button 
                 variant="outline" 
@@ -269,37 +239,6 @@ const Index = () => {
               </Button>
             </div>
           )}
-        </Card>
-      </div>
-    );
-  }
-
-  if (showProfileSetup) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary via-secondary to-accent p-4">
-        <Card className="w-full max-w-md p-8 shadow-2xl animate-scale-in">
-          <h2 className="text-2xl font-bold text-center mb-6">Настройка профиля</h2>
-          <form onSubmit={handleProfileSetup} className="space-y-4">
-            <div>
-              <Label htmlFor="firstName">Имя</Label>
-              <Input id="firstName" name="firstName" placeholder="Ваше имя" required className="mt-1" />
-            </div>
-            <div>
-              <Label htmlFor="lastName">Фамилия</Label>
-              <Input id="lastName" name="lastName" placeholder="Ваша фамилия" required className="mt-1" />
-            </div>
-            <div>
-              <Label htmlFor="username">Username</Label>
-              <Input id="username" name="username" placeholder="Ваш username" required className="mt-1" />
-            </div>
-            <div>
-              <Label htmlFor="avatar">Фотография (необязательно)</Label>
-              <Input id="avatar" name="avatar" type="file" accept="image/*" className="mt-1" />
-            </div>
-            <Button type="submit" className="w-full bg-gradient-to-r from-primary to-secondary">
-              Продолжить
-            </Button>
-          </form>
         </Card>
       </div>
     );
@@ -361,46 +300,44 @@ const Index = () => {
 
             <TabsContent value="chats" className="flex-1 m-0">
               <ScrollArea className="h-full">
-                {chats.map((chat) => {
-                  const user = getUserById(chat.userId);
-                  if (!user) return null;
-                  const lastMessage = chat.messages[chat.messages.length - 1];
-
-                  return (
+                {chats.length === 0 ? (
+                  <div className="text-center p-8 text-muted-foreground">
+                    <Icon name="MessageSquare" size={48} className="mx-auto mb-2 opacity-50" />
+                    <p>Нет активных чатов</p>
+                    <p className="text-sm">Напишите кому-нибудь из контактов</p>
+                  </div>
+                ) : (
+                  chats.map((chat) => (
                     <div
                       key={chat.id}
-                      onClick={() => setSelectedChat(chat.id)}
+                      onClick={() => setSelectedChat(chat.userId)}
                       className={`p-4 border-b cursor-pointer hover:bg-muted/50 transition-all ${
-                        selectedChat === chat.id ? 'bg-muted' : ''
+                        selectedChat === chat.userId ? 'bg-muted' : ''
                       }`}
                     >
                       <div className="flex items-center gap-3">
                         <div className="relative">
                           <Avatar>
-                            <AvatarImage src={user.avatar} />
-                            <AvatarFallback>{user.firstName[0]}{user.lastName[0]}</AvatarFallback>
+                            <AvatarImage src={chat.avatar} />
+                            <AvatarFallback>{chat.firstName[0]}{chat.lastName[0]}</AvatarFallback>
                           </Avatar>
-                          {user.isOnline && (
+                          {chat.isOnline && (
                             <div className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 rounded-full ring-2 ring-card" />
                           )}
                         </div>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center">
-                            <p className="font-semibold truncate">{user.firstName} {user.lastName}</p>
-                            {getRoleBadge(user)}
+                            <p className="font-semibold truncate">{chat.firstName} {chat.lastName}</p>
+                            {getRoleBadge(chat)}
                           </div>
                           <p className="text-sm text-muted-foreground truncate">
-                            {chat.isTyping ? (
-                              <span className="text-primary italic">Печатает...</span>
-                            ) : (
-                              lastMessage?.text
-                            )}
+                            {chat.lastMessage || 'Нет сообщений'}
                           </p>
                         </div>
                       </div>
                     </div>
-                  );
-                })}
+                  ))
+                )}
               </ScrollArea>
             </TabsContent>
 
@@ -417,32 +354,37 @@ const Index = () => {
                 </div>
               </div>
               <ScrollArea className="h-full">
-                {users.map((user) => (
-                  <div key={user.id} className="p-4 border-b hover:bg-muted/50 transition-all cursor-pointer">
-                    <div className="flex items-center gap-3">
-                      <div className="relative">
-                        <Avatar>
-                          <AvatarImage src={user.avatar} />
-                          <AvatarFallback>{user.firstName[0]}{user.lastName[0]}</AvatarFallback>
-                        </Avatar>
-                        {user.isOnline && (
-                          <div className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 rounded-full ring-2 ring-card" />
-                        )}
-                      </div>
-                      <div className="flex-1">
-                        <div className="flex items-center">
-                          <p className="font-semibold">{user.firstName} {user.lastName}</p>
-                          {getRoleBadge(user)}
+                {users
+                  .filter(u => 
+                    u.id !== currentUser?.id && 
+                    (searchUsername === '' || u.username.toLowerCase().includes(searchUsername.toLowerCase()))
+                  )
+                  .map((user) => (
+                    <div key={user.id} className="p-4 border-b hover:bg-muted/50 transition-all">
+                      <div className="flex items-center gap-3">
+                        <div className="relative">
+                          <Avatar>
+                            <AvatarImage src={user.avatar} />
+                            <AvatarFallback>{user.firstName[0]}{user.lastName[0]}</AvatarFallback>
+                          </Avatar>
+                          {user.isOnline && (
+                            <div className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 rounded-full ring-2 ring-card" />
+                          )}
                         </div>
-                        <p className="text-sm text-muted-foreground">@{user.username}</p>
+                        <div className="flex-1">
+                          <div className="flex items-center">
+                            <p className="font-semibold">{user.firstName} {user.lastName}</p>
+                            {getRoleBadge(user)}
+                          </div>
+                          <p className="text-sm text-muted-foreground">@{user.username}</p>
+                        </div>
+                        <Button size="sm" variant="outline" className="hover-scale" onClick={() => startChat(user.id)}>
+                          <Icon name="MessageCircle" size={16} className="mr-1" />
+                          Написать
+                        </Button>
                       </div>
-                      <Button size="sm" variant="outline" className="hover-scale">
-                        <Icon name="UserPlus" size={16} className="mr-1" />
-                        Добавить
-                      </Button>
                     </div>
-                  </div>
-                ))}
+                  ))}
               </ScrollArea>
             </TabsContent>
           </Tabs>
@@ -453,26 +395,27 @@ const Index = () => {
             <>
               <div className="p-4 border-b bg-card flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <Avatar>
-                    <AvatarImage src={getUserById(chats.find(c => c.id === selectedChat)?.userId || '')?.avatar} />
-                    <AvatarFallback>
-                      {getUserById(chats.find(c => c.id === selectedChat)?.userId || '')?.firstName[0]}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div>
-                    <div className="flex items-center">
-                      <p className="font-semibold">
-                        {getUserById(chats.find(c => c.id === selectedChat)?.userId || '')?.firstName}
-                      </p>
-                      {getRoleBadge(getUserById(chats.find(c => c.id === selectedChat)?.userId || '')!)}
-                    </div>
-                    <p className="text-sm text-muted-foreground">
-                      {formatLastSeen(
-                        getUserById(chats.find(c => c.id === selectedChat)?.userId || '')?.lastSeen,
-                        getUserById(chats.find(c => c.id === selectedChat)?.userId || '')?.isOnline
-                      )}
-                    </p>
-                  </div>
+                  {(() => {
+                    const chat = getChatById(selectedChat);
+                    if (!chat) return null;
+                    return (
+                      <>
+                        <Avatar>
+                          <AvatarImage src={chat.avatar} />
+                          <AvatarFallback>{chat.firstName[0]}</AvatarFallback>
+                        </Avatar>
+                        <div>
+                          <div className="flex items-center">
+                            <p className="font-semibold">{chat.firstName}</p>
+                            {getRoleBadge(chat)}
+                          </div>
+                          <p className="text-sm text-muted-foreground">
+                            {formatLastSeen(chat.lastSeen, chat.isOnline)}
+                          </p>
+                        </div>
+                      </>
+                    );
+                  })()}
                 </div>
                 <Button variant="ghost" size="icon">
                   <Icon name="MoreVertical" size={20} />
@@ -481,8 +424,8 @@ const Index = () => {
 
               <ScrollArea className="flex-1 p-4">
                 <div className="space-y-4">
-                  {chats.find(c => c.id === selectedChat)?.messages.map((message) => {
-                    const isOwnMessage = message.senderId === 'current';
+                  {messages.map((message) => {
+                    const isOwnMessage = message.senderId === currentUser?.id;
                     return (
                       <div
                         key={message.id}
@@ -497,7 +440,7 @@ const Index = () => {
                         >
                           <p>{message.text}</p>
                           <p className={`text-xs mt-1 ${isOwnMessage ? 'text-white/70' : 'text-muted-foreground'}`}>
-                            {message.timestamp.toLocaleTimeString('ru', { hour: '2-digit', minute: '2-digit' })}
+                            {new Date(message.timestamp).toLocaleTimeString('ru', { hour: '2-digit', minute: '2-digit' })}
                           </p>
                         </div>
                       </div>
