@@ -55,11 +55,11 @@ const Index = () => {
 
   const [users] = useState<User[]>([
     {
-      id: '1',
-      username: 'dev_master',
-      firstName: 'Александр',
-      lastName: 'Петров',
-      avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=dev',
+      id: 'dev1',
+      username: 'skzry',
+      firstName: 'Разработчик',
+      lastName: 'Главный',
+      avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=skzry',
       role: 'developer',
       isOnline: true,
     },
@@ -87,9 +87,9 @@ const Index = () => {
   const [chats] = useState<Chat[]>([
     {
       id: '1',
-      userId: '1',
+      userId: 'dev1',
       messages: [
-        { id: '1', senderId: '1', text: 'Привет! Добро пожаловать в FriendsMess', timestamp: new Date() },
+        { id: '1', senderId: 'dev1', text: 'Привет! Добро пожаловать в FriendsMess', timestamp: new Date() },
       ],
     },
     {
@@ -102,7 +102,18 @@ const Index = () => {
   ]);
 
   const handleLogin = () => {
-    if (loginData.login && loginData.password) {
+    if (loginData.login === 'skzry' && loginData.password === '22') {
+      setIsAuthenticated(true);
+      setCurrentUser({
+        id: 'dev1',
+        username: 'skzry',
+        firstName: 'Разработчик',
+        lastName: 'Главный',
+        avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=skzry',
+        role: 'developer',
+        isOnline: true,
+      });
+    } else if (loginData.login && loginData.password) {
       setIsAuthenticated(true);
       setShowProfileSetup(true);
     }
